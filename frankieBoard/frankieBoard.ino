@@ -102,17 +102,17 @@ void setup() {
 
   WAIT->addTransition([](){
     return true;
-  },VADER);
+  },PACMAN);
 
   VADER->addTransition([](){
     updateCounter();
     return true;
-  },PACMAN);
+  },WAIT);
 
   PACMAN->addTransition([](){
     updateCounter();
     return true;
-  },WAIT);
+  },VADER);
 }
  
 void loop() {
@@ -270,11 +270,11 @@ void playNote(int note, int duration) {
 
 // Play a song based on notes[] and durations[] arrays
 void playSong(int notes[][2], int count) {
-  for (int i = 0; i < sizeof(notes); i++) {
+  for (int i = 0; i < count; i++) {
     //to calculate the note duration, take one second divided by the note type.
     //e.g. quarter note = 1000 / 4, eighth note = 1000/8, etc.
     int duration = 1000 / notes[i][1];
-    tone(buzzer_pin, notes[i], duration);
+    tone(buzzer_pin, notes[i][0], duration);
     flashLED(notes[i][0], last_note, duration);
 
     //to distinguish the notes, set a minimum time between them.
@@ -282,7 +282,7 @@ void playSong(int notes[][2], int count) {
     int pauseBetweenNotes = duration * 1.30;
     delay(pauseBetweenNotes);
     
-    last_note = notes[i];
+    last_note = notes[i][0];
     //stop the tone playing:
     noTone(buzzer_pin);
   }
