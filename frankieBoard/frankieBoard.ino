@@ -1,32 +1,58 @@
+#include <IRremote.h>
 #include <LiquidCrystal.h>
-#include <StateMachine.h>
 #include <pitches.h>
-#include "IRremote.h"
+#include <StateMachine.h>
 
 #define ELEMENTS(x)   (sizeof(x) / sizeof(x[0]))
 
+// Buzzer, Button, and LED Pins
+const byte BUTTON_PIN = 2;
+const byte BUZZER_PIN = 5;
+const byte LED_PIN_A = 3;
+const byte LED_PIN_B = 4;
+          
+// LCD Settings
+const byte LCD_RS_PIN = 7;
+const byte LCD_ENABLE_PIN = 8;
+const byte LCD_DATA_PIN_4 = 9;
+const byte LCD_DATA_PIN_5 = 10;
+const byte LCD_DATA_PIN_6 = 11;
+const byte LCD_DATA_PIN_7 = 12;
+const byte LCD_COLS = 16;
+const byte LCD_ROWS = 2;
 
-// Musical Notes
-const int c = 261;
-const int d = 294;
-const int e = 329;
-const int f = 349;
-const int g = 391;
-const int gS = 415;
-const int a = 440;
-const int aS = 455;
-const int b = 466;
-const int cH = 523;
-const int cSH = 554;
-const int dH = 587;
-const int dSH = 622;
-const int eH = 659;
-const int fH = 698;
-const int fSH = 740;
-const int gH = 784;
-const int gSH = 830;
-const int aH = 880;
+// Hacky atttempt at some musical notes
+//  According to wikipedia these are Half/Quarter Notes https://en.wikipedia.org/wiki/List_of_musical_symbols
+const byte HALF_NOTE[8] = {
+  B00001,
+  B00001,
+  B00001,
+  B00001,
+  B01111,
+  B10001,
+  B10001,
+  B01110
+};
 
+const byte QUARTER_NOTE[8] = {
+  B00001,
+  B00001,
+  B00001,
+  B00001,
+  B01111,
+  B11111,
+  B11111,
+  B01110
+};
+
+// ** Song Definitions ** //
+//  These songs were converted to notes by https://github.com/hibit-dev/
+//  We are taking it one step further by taking the note and duration arrays and combining them into a multi-dimensional array.
+//  The structure is song_array[][2] = {{NOTE_CONSTANT, TIMING}, {NOTE_CONSTANT, TIMING}}
+//  where TIMING is given in fractions of a second where we only provide the divisor 
+//  e.g., 2, 4, 8, 16 for 1/2th, 1/4th, 1/8th, 1/16th of a second
+
+// Notes taken from https://github.com/hibit-dev/buzzer/blob/master/src/games/pacman/pacman.ino
 int pacman_melody[][2] = {
   {NOTE_B4,16}, {NOTE_B5,16}, {NOTE_FS5,16}, {NOTE_DS5,16},
   {NOTE_B5,32}, {NOTE_FS5,16}, {NOTE_DS5,8}, {NOTE_C5,16},
@@ -37,90 +63,103 @@ int pacman_melody[][2] = {
   {NOTE_F5,32}, {NOTE_FS5,32}, {NOTE_G5,32}, {NOTE_G5,32}, {NOTE_GS5,32}, {NOTE_A5,16}, {NOTE_B5,8}
 };
  
- // Buzzer, Button, and LED Pins
-const byte button_pin = 2;
-const byte buzzer_pin = 5;
-const byte led_pin_1 = 3;
-const byte led_pin_2 = 4;
-          
-// LCD Settings
-const byte lcd_rs_pin = 7;
-const byte lcd_enable_pin = 8;
-const byte lcd_d4_pin = 9;
-const byte lcd_d5_pin = 10;
-const byte lcd_d6_pin = 11;
-const byte lcd_d7_pin = 12;
-const byte lcd_col_width = 16;
-const byte lcd_rows = 2;
+// Notes taken from https://github.com/hibit-dev/buzzer/blob/master/src/movies/star_wars/star_wars.ino
+int new_hope_melody[][2] = {
+  {NOTE_AS4,8}, {NOTE_AS4,8}, {NOTE_AS4,8},
+  {NOTE_F5,2}, {NOTE_C6,2},
+  {NOTE_AS5,8}, {NOTE_A5,8}, {NOTE_G5,8}, {NOTE_F6,2}, {NOTE_C6,4},
+  {NOTE_AS5,8}, {NOTE_A5,8}, {NOTE_G5,8}, {NOTE_F6,2}, {NOTE_C6,4},
+  {NOTE_AS5,8}, {NOTE_A5,8}, {NOTE_AS5,8}, {NOTE_G5,2}, {NOTE_C5,8}, {NOTE_C5,8}, {NOTE_C5,8},
+  {NOTE_F5,2}, {NOTE_C6,2},
+  {NOTE_AS5,8}, {NOTE_A5,8}, {NOTE_G5,8}, {NOTE_F6,2}, {NOTE_C6,4},
 
-// Hacky atttempt at some musical notes
-const byte black_note[8] = {
-  B00001,
-  B00001,
-  B00001,
-  B00001,
-  B01111,
-  B11111,
-  B11111,
-  B01110
+  {NOTE_AS5,8}, {NOTE_A5,8}, {NOTE_G5,8}, {NOTE_F6,2}, {NOTE_C6,4},
+  {NOTE_AS5,8}, {NOTE_A5,8}, {NOTE_AS5,8}, {NOTE_G5,2}, {NOTE_C5,8}, {NOTE_C5,16},
+  {NOTE_D5,4}, {NOTE_D5,8}, {NOTE_AS5,8}, {NOTE_A5,8}, {NOTE_G5,8}, {NOTE_F5,8},
+  {NOTE_F5,8}, {NOTE_G5,8}, {NOTE_A5,8}, {NOTE_G5,4}, {NOTE_D5,8}, {NOTE_E5,4}, {NOTE_C5,8}, {NOTE_C5,16},
+  {NOTE_D5,4}, {NOTE_D5,8}, {NOTE_AS5,8}, {NOTE_A5,8}, {NOTE_G5,8}, {NOTE_F5,8},
+
+  {NOTE_C6,8}, {NOTE_G5,16}, {NOTE_G5,2}, {REST,8}, {NOTE_C5,8},
+  {NOTE_D5,4}, {NOTE_D5,8}, {NOTE_AS5,8}, {NOTE_A5,8}, {NOTE_G5,8}, {NOTE_F5,8},
+  {NOTE_F5,8}, {NOTE_G5,8}, {NOTE_A5,8}, {NOTE_G5,4}, {NOTE_D5,8}, {NOTE_E5,4}, {NOTE_C6,8}, {NOTE_C6,16},
+  {NOTE_F6,4}, {NOTE_DS6,8}, {NOTE_CS6,4}, {NOTE_C6,8}, {NOTE_AS5,4}, {NOTE_GS5,8}, {NOTE_G5,4}, {NOTE_F5,8},
+  {NOTE_C6,1}
 };
 
-const byte white_note[8] = {
-  B00001,
-  B00001,
-  B00001,
-  B00001,
-  B01111,
-  B10001,
-  B10001,
-  B01110
-};
+/* Lets get this party started! */
+// Main logic will follow
 
 // initialize counter variables
-int vader_counter = 0;
+int new_hope_counter = 0;
 int pacman_counter = 0;
 int last_note = 0;
 
 // Create LCD and StateMachine objects
-LiquidCrystal lcd(lcd_rs_pin, lcd_enable_pin, lcd_d4_pin, lcd_d5_pin, lcd_d6_pin, lcd_d7_pin);
+LiquidCrystal lcd(LCD_RS_PIN, LCD_ENABLE_PIN, LCD_DATA_PIN_4, LCD_DATA_PIN_5, LCD_DATA_PIN_6, LCD_DATA_PIN_7);
 StateMachine machine = StateMachine();
 
 State* WAIT = machine.addState(&wait_state);
-State* VADER = machine.addState(&vader_state);
+State* NEWHOPE = machine.addState(&new_hope_state);
 State* PACMAN = machine.addState(&pacman_state);
 
+// arduino setup - only executed once
 void setup() {
   //Setup pin modes
-  pinMode(buzzer_pin, OUTPUT);
-  pinMode(button_pin, INPUT_PULLUP);  
-  pinMode(led_pin_1, OUTPUT);
-  pinMode(led_pin_2, OUTPUT);
-  lcd.createChar(0,black_note);
-  lcd.createChar(1,white_note);
-  lcd.begin(lcd_col_width, lcd_rows);
+  pinMode(BUZZER_PIN, OUTPUT);
+  pinMode(BUTTON_PIN, INPUT_PULLUP);  
+  pinMode(LED_PIN_A, OUTPUT);
+  pinMode(LED_PIN_B, OUTPUT);
+  // Define 2 musical notes as custom LCD Chars
+  lcd.createChar(0,QUARTER_NOTE);
+  lcd.createChar(1,HALF_NOTE);
+  // Initialize LCD Screen
+  lcd.begin(LCD_COLS, LCD_ROWS);
   lcd.print("Push the button...");
 
+  // Define State Machine Transitions
   WAIT->addTransition([](){
     return true;
   },PACMAN);
 
-  VADER->addTransition([](){
-    updateCounter();
+  NEWHOPE->addTransition([](){
+    updateCounters();
     return true;
   },WAIT);
 
   PACMAN->addTransition([](){
-    updateCounter();
+    updateCounters();
     return true;
-  },VADER);
+  },NEWHOPE);
 }
  
+// arduino loop - executed after setup()
 void loop() {
+  // Trigger Our State Machine to run
   machine.run();
 }
 
-/* ** Functions ** */
+/* ** State Function Definitions ** */
 
+// Patiently wait for a button push
+void wait_state() {
+    buttonWait(BUTTON_PIN);
+}
+
+// Play the theme song from Star Wars: A New Hope
+void new_hope_state() {
+  draw_notes();
+  playSong(new_hope_melody, ELEMENTS(new_hope_melody));
+  new_hope_counter++;
+}
+
+// Play the pacman theme song
+void pacman_state() {
+  draw_notes();
+  playSong(pacman_melody, ELEMENTS(pacman_melody));
+  pacman_counter++;
+}
+
+/* ** Other Functions ** */
 // Waits for a button to be pushed  
 //  assumes INPUT_PULLUP so that LOW means it has been triggered
 void buttonWait(int button_pin) {
@@ -133,11 +172,8 @@ void buttonWait(int button_pin) {
   }
 }
 
-//
-void wait_state() {
-    buttonWait(button_pin);
-}
-
+// Draw 2 rows of alternating musical notes on the LCD
+//  this seems less boring and gives the user something to look at besides the blinky lights
 void draw_notes() {
   lcd.clear();
   for (int i = 0; i < 5; i++) {
@@ -155,117 +191,26 @@ void draw_notes() {
   }
 }
 
-// Play the entire song
-void vader_state() {
-  draw_notes();
-  
-  playNote(a, 500);
-  playNote(a, 500);    
-  playNote(a, 500);
-  playNote(f, 350);
-  playNote(cH, 150);  
-  playNote(a, 500);
-  playNote(f, 350);
-  playNote(cH, 150);
-  playNote(a, 650);
- 
-  delay(500);
- 
-  playNote(eH, 500);
-  playNote(eH, 500);
-  playNote(eH, 500);  
-  playNote(fH, 350);
-  playNote(cH, 150);
-  playNote(gS, 500);
-  playNote(f, 350);
-  playNote(cH, 150);
-  playNote(a, 650);
- 
-  delay(500);
-
-  playVaderChorus();
- 
-  playNote(f, 250);  
-  playNote(gS, 500);  
-  playNote(f, 350);  
-  playNote(a, 125);
-  playNote(cH, 500);
-  playNote(a, 375);  
-  playNote(cH, 125);
-  playNote(eH, 650);
- 
-  delay(500);
- 
-  playVaderChorus();
- 
-  playNote(f, 250);  
-  playNote(gS, 500);  
-  playNote(f, 375);  
-  playNote(cH, 125);
-  playNote(a, 500);  
-  playNote(f, 375);  
-  playNote(cH, 125);
-  playNote(a, 650);  
- 
-  delay(650);
-
-  vader_counter++;
-}
-
-void pacman_state() {
-  draw_notes();
-  playSong(pacman_melody, ELEMENTS(pacman_melody));
-  pacman_counter++;
-}
-
-// Play an individual note
- 
-void playVaderChorus() {
-  playNote(aH, 500);
-  playNote(a, 300);
-  playNote(a, 150);
-  playNote(aH, 500);
-  playNote(gSH, 325);
-  playNote(gH, 175);
-  playNote(fSH, 125);
-  playNote(fH, 125);    
-  playNote(fSH, 250);
- 
-  delay(325);
- 
-  playNote(aS, 250);
-  playNote(dSH, 500);
-  playNote(dH, 325);  
-  playNote(cSH, 175);  
-  playNote(cH, 125);  
-  playNote(b, 125);  
-  playNote(cH, 250);  
- 
-  delay(350);
-}
-
-void updateCounter() {
-  lcd.clear();
-  lcd.print("Vader: ");
-  lcd.setCursor(7, 0);
-  lcd.print(vader_counter);
-  
-  lcd.setCursor(0, 1);
-  lcd.print("PacMan: ");
-  lcd.setCursor(9, 1);
-  lcd.print(pacman_counter);
-}
-
-// Play a single Note
-void playNote(int note, int duration) {
-  // Play tone on buzzer_pin
-  tone(buzzer_pin, note, duration);
-  // Light different LED depending on value of note
-  flashLED(note, last_note, duration);
-  //Stop tone on buzzer_pin
-  noTone(buzzer_pin);
-  last_note = note;
-  delay(50);
+// Flash 2 LED lights by comparing the current note to the previous note
+//  this is just an attempt to make the lighting more intersting than simply alternating.
+void flashLED(int current, int last, int duration) {
+      // Light different LED depending on value of note
+    if(last > current)
+    {
+      digitalWrite(LED_PIN_1, HIGH);
+      delay(duration);
+      digitalWrite(LED_PIN_1, LOW);
+    } else if(last == current) {
+      digitalWrite(LED_PIN_1, HIGH);
+      digitalWrite(LED_PIN_2, HIGH);
+      delay(duration);
+      digitalWrite(LED_PIN_1, LOW);
+      digitalWrite(LED_PIN_2, LOW);
+    } else {
+      digitalWrite(LED_PIN_2, HIGH);
+      delay(duration);
+      digitalWrite(LED_PIN_2, LOW);
+    }
 }
 
 // Play a song based on notes[] and durations[] arrays
@@ -274,7 +219,7 @@ void playSong(int notes[][2], int count) {
     //to calculate the note duration, take one second divided by the note type.
     //e.g. quarter note = 1000 / 4, eighth note = 1000/8, etc.
     int duration = 1000 / notes[i][1];
-    tone(buzzer_pin, notes[i][0], duration);
+    tone(BUZZER_PIN, notes[i][0], duration);
     flashLED(notes[i][0], last_note, duration);
 
     //to distinguish the notes, set a minimum time between them.
@@ -284,26 +229,19 @@ void playSong(int notes[][2], int count) {
     
     last_note = notes[i][0];
     //stop the tone playing:
-    noTone(buzzer_pin);
+    noTone(BUZZER_PIN);
   }
 }
 
-void flashLED(int current, int last, int duration) {
-      // Light different LED depending on value of note
-    if(last > current)
-    {
-      digitalWrite(led_pin_1, HIGH);
-      delay(duration);
-      digitalWrite(led_pin_1, LOW);
-    } else if(last == current) {
-      digitalWrite(led_pin_1, HIGH);
-      digitalWrite(led_pin_2, HIGH);
-      delay(duration);
-      digitalWrite(led_pin_1, LOW);
-      digitalWrite(led_pin_2, LOW);
-    } else {
-      digitalWrite(led_pin_2, HIGH);
-      delay(duration);
-      digitalWrite(led_pin_2, LOW);
-    }
+// Update LCD Screen with current Counters
+void updateCounters() {
+  lcd.clear();
+  lcd.print("New Hope: ");
+  lcd.setCursor(11, 0);
+  lcd.print(new_hope_counter);
+  
+  lcd.setCursor(0, 1);
+  lcd.print("PacMan: ");
+  lcd.setCursor(9, 1);
+  lcd.print(pacman_counter);
 }
