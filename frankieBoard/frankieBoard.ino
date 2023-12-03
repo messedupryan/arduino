@@ -56,33 +56,37 @@ int pacman_melody[][2] = {
   {NOTE_B4,16}, {NOTE_B5,16}, {NOTE_FS5,16}, {NOTE_DS5,16},
   {NOTE_B5,32}, {NOTE_FS5,16}, {NOTE_DS5,8}, {NOTE_C5,16},
   {NOTE_C6,16}, {NOTE_G6,16}, {NOTE_E6,16}, {NOTE_C6,32}, {NOTE_G6,16}, {NOTE_E6,8},
-  
   {NOTE_B4,16}, {NOTE_B5,16}, {NOTE_FS5,16}, {NOTE_DS5,16}, {NOTE_B5,32},
   {NOTE_FS5,16}, {NOTE_DS5,8}, {NOTE_DS5,32}, {NOTE_E5,32}, {NOTE_F5,32},
-  {NOTE_F5,32}, {NOTE_FS5,32}, {NOTE_G5,32}, {NOTE_G5,32}, {NOTE_GS5,32}, {NOTE_A5,16}, {NOTE_B5,8}
+  {NOTE_F5,32}, {NOTE_FS5,32}, {NOTE_G5,32}, {NOTE_G5,32}, {NOTE_GS5,32}, {NOTE_A5,16}, {NOTE_B5,8},
+  {REST,2},
 };
  
 // Notes taken from https://github.com/hibit-dev/buzzer/blob/master/src/movies/star_wars/star_wars.ino
 int new_hope_melody[][2] = {
   {NOTE_AS4,8}, {NOTE_AS4,8}, {NOTE_AS4,8},
-  {NOTE_F5,2}, {NOTE_C6,2},
-  {NOTE_AS5,8}, {NOTE_A5,8}, {NOTE_G5,8}, {NOTE_F6,2}, {NOTE_C6,4},
-  {NOTE_AS5,8}, {NOTE_A5,8}, {NOTE_G5,8}, {NOTE_F6,2}, {NOTE_C6,4},
-  {NOTE_AS5,8}, {NOTE_A5,8}, {NOTE_AS5,8}, {NOTE_G5,2}, {NOTE_C5,8}, {NOTE_C5,8}, {NOTE_C5,8},
-  {NOTE_F5,2}, {NOTE_C6,2},
-  {NOTE_AS5,8}, {NOTE_A5,8}, {NOTE_G5,8}, {NOTE_F6,2}, {NOTE_C6,4},
+  {NOTE_F5,1}, {NOTE_C6,2},
+  {NOTE_AS5,8}, {NOTE_A5,8}, {NOTE_G5,8}, {NOTE_F6,1}, {NOTE_C6,2},
+  {NOTE_AS5,8}, {NOTE_A5,8}, {NOTE_G5,8}, {NOTE_F6,1}, {NOTE_C6,2},
+  {NOTE_AS5,8}, {NOTE_A5,8}, {NOTE_AS5,8}, {NOTE_G5,1},
+  {REST,4}, 
+  {NOTE_C5,8}, {NOTE_C5,8}, {NOTE_C5,8},
+  {NOTE_F5,1}, {NOTE_C6,2},
+  {NOTE_AS5,8}, {NOTE_A5,8}, {NOTE_G5,8}, {NOTE_F6,1}, {NOTE_C6,2},
+  {NOTE_AS5,8}, {NOTE_A5,8}, {NOTE_G5,8}, {NOTE_F6,1}, {NOTE_C6,2},
+  {NOTE_AS5,8}, {NOTE_A5,8}, {NOTE_AS5,8}, {NOTE_G5,1}, 
+  {REST,2},
+};
 
-  {NOTE_AS5,8}, {NOTE_A5,8}, {NOTE_G5,8}, {NOTE_F6,2}, {NOTE_C6,4},
-  {NOTE_AS5,8}, {NOTE_A5,8}, {NOTE_AS5,8}, {NOTE_G5,2}, {NOTE_C5,8}, {NOTE_C5,16},
-  {NOTE_D5,4}, {NOTE_D5,8}, {NOTE_AS5,8}, {NOTE_A5,8}, {NOTE_G5,8}, {NOTE_F5,8},
-  {NOTE_F5,8}, {NOTE_G5,8}, {NOTE_A5,8}, {NOTE_G5,4}, {NOTE_D5,8}, {NOTE_E5,4}, {NOTE_C5,8}, {NOTE_C5,16},
-  {NOTE_D5,4}, {NOTE_D5,8}, {NOTE_AS5,8}, {NOTE_A5,8}, {NOTE_G5,8}, {NOTE_F5,8},
-
-  {NOTE_C6,8}, {NOTE_G5,16}, {NOTE_G5,2}, {REST,8}, {NOTE_C5,8},
-  {NOTE_D5,4}, {NOTE_D5,8}, {NOTE_AS5,8}, {NOTE_A5,8}, {NOTE_G5,8}, {NOTE_F5,8},
-  {NOTE_F5,8}, {NOTE_G5,8}, {NOTE_A5,8}, {NOTE_G5,4}, {NOTE_D5,8}, {NOTE_E5,4}, {NOTE_C6,8}, {NOTE_C6,16},
-  {NOTE_F6,4}, {NOTE_DS6,8}, {NOTE_CS6,4}, {NOTE_C6,8}, {NOTE_AS5,4}, {NOTE_GS5,8}, {NOTE_G5,4}, {NOTE_F5,8},
-  {NOTE_C6,1}
+int vader_melody[][2] = {
+  {NOTE_A4,2}, {NOTE_A4,2}, {NOTE_A4,2},
+  {NOTE_F4,3}, {NOTE_C5,7}, {NOTE_A4,2},
+  {NOTE_F4,3}, {NOTE_C5,7}, {NOTE_A4,2},
+  {REST,2},
+  {NOTE_E5,2}, {NOTE_E5,2}, {NOTE_E5,2},
+  {NOTE_F5,3}, {NOTE_C5,7}, {NOTE_GS4,2},
+  {NOTE_F4,3}, {NOTE_C5,7}, {NOTE_A4,2},
+  {REST,2},
 };
 
 /* 🎉 Lets get this party started! 🚀*/
@@ -90,6 +94,7 @@ int new_hope_melody[][2] = {
 // initialize counter and other utility variables
 int new_hope_counter = 0;
 int pacman_counter = 0;
+int vader_counter = 0;
 // Keep track of the last note that was played
 int last_note = 0;
 //vairable uses to store the last decodedRawData
@@ -99,14 +104,6 @@ uint32_t last_decodedRawData = 0;
 // Create LCD and IR Receiver objects
 IRrecv irrecv(IR_SENSOR_PIN);
 LiquidCrystal lcd(LCD_RS_PIN, LCD_ENABLE_PIN, LCD_DATA_PIN_4, LCD_DATA_PIN_5, LCD_DATA_PIN_6, LCD_DATA_PIN_7);
-
-// Create State Machines
-//  see https://github.com/jrullan/StateMachine for more detail on the state machine library
-// StateMachine machine = StateMachine();
-// State* WAIT = machine.addState(&wait_state);
-// State* NEWHOPE = machine.addState(&new_hope_state);
-// State* PACMAN = machine.addState(&pacman_state);
-// State* nextState = nullptr;
 
 // arduino setup - only executed once
 void setup() {
@@ -195,14 +192,22 @@ void playSong(int notes[][2], int numNotes) {
     flashLED(notes[i][0], last_note, duration);
     //to distinguish the notes, set a minimum time between them.
     //the note's duration + 30% seems to work well:
-    int pauseBetweenNotes = duration * (100/85);
+    // int pauseBetweenNotes = duration * 1.30;
     // int pauseBetweenNotes = 100;
-    delay(pauseBetweenNotes);
+    // delay(pauseBetweenNotes);
+    delay(50);
     // Store the last note played. We are using this to control the blinking LED's
     last_note = notes[i][0];
   }
 }
 
+// Take an signal from the IR Receiver and translate the code to a button
+//  This is where I am currently triggering the logic for each button.
+//  I ran into a hell of a bug when I introduced this code.
+//  Turns out IRRemote + tone() both use a conflicting timer by default.
+//  check this shit out: https://arduino.stackexchange.com/questions/67239/tone-conflicts-with-irremote-library-multiple-definition-of-vector-7
+//  fix was to alter IRTimer.hpp from the library and uncomment 
+//  #define IR_USE_AVR_TIMER1
 void translateIR() // takes action based on IR code received
 {
   // Check if it is a repeat IR code 
@@ -238,9 +243,10 @@ void translateIR() // takes action based on IR code received
       updateCounters();
       break;
     case 0xA15EFF00: Serial.println("3");
+      Serial.println("3");
       draw_notes();
-      delay(1000);
-      new_hope_counter++;
+      playSong(vader_melody, ELEMENTS(vader_melody));
+      vader_counter++;
       updateCounters();
       break;
     // To-Do: figure these state transitions out and a method to pause
@@ -280,12 +286,17 @@ void translateIR() // takes action based on IR code received
 // Update LCD Screen with current Counters
 void updateCounters() {
   lcd.clear();
-  lcd.print("New Hope: ");
-  lcd.setCursor(10, 0);
+  lcd.print("NH: ");
+  lcd.setCursor(4, 0);
   lcd.print(new_hope_counter);
   
+  lcd.setCursor(6, 0);
+  lcd.print("DV: ");
+  lcd.setCursor(10, 0);
+  lcd.print(vader_counter);
+
   lcd.setCursor(0, 1);
-  lcd.print("PacMan: ");
-  lcd.setCursor(9, 1);
+  lcd.print("PM: ");
+  lcd.setCursor(4, 1);
   lcd.print(pacman_counter);
 }
