@@ -1,13 +1,12 @@
 #include <IRremote.h>
 #include <LiquidCrystal.h>
 #include <pitches.h>
-#include <StateMachine.h>
 
 #define ELEMENTS(x)   (sizeof(x) / sizeof(x[0]))
 
-// Buzzer, Button, and LED Pins
-const byte BUTTON_PIN = 2;
+// Various Device PIN settings
 const byte BUZZER_PIN = 5;
+const byte IR_SENSOR_PIN = 13; 
 const byte LED_PIN_A = 3;
 const byte LED_PIN_B = 4;
           
@@ -86,91 +85,63 @@ int new_hope_melody[][2] = {
   {NOTE_C6,1}
 };
 
-/* Lets get this party started! */
-// Main logic will follow
+/* 🎉 Lets get this party started! 🚀*/
 
-// initialize counter variables
+// initialize counter and other utility variables
 int new_hope_counter = 0;
 int pacman_counter = 0;
+// Keep track of the last note that was played
 int last_note = 0;
+//vairable uses to store the last decodedRawData
+uint32_t last_decodedRawData = 0;
 
-// Create LCD and StateMachine objects
+
+// Create LCD and IR Receiver objects
+IRrecv irrecv(IR_SENSOR_PIN);
 LiquidCrystal lcd(LCD_RS_PIN, LCD_ENABLE_PIN, LCD_DATA_PIN_4, LCD_DATA_PIN_5, LCD_DATA_PIN_6, LCD_DATA_PIN_7);
-StateMachine machine = StateMachine();
 
-State* WAIT = machine.addState(&wait_state);
-State* NEWHOPE = machine.addState(&new_hope_state);
-State* PACMAN = machine.addState(&pacman_state);
+// Create State Machines
+//  see https://github.com/jrullan/StateMachine for more detail on the state machine library
+// StateMachine machine = StateMachine();
+// State* WAIT = machine.addState(&wait_state);
+// State* NEWHOPE = machine.addState(&new_hope_state);
+// State* PACMAN = machine.addState(&pacman_state);
+// State* nextState = nullptr;
 
 // arduino setup - only executed once
 void setup() {
   //Setup pin modes
   pinMode(BUZZER_PIN, OUTPUT);
-  pinMode(BUTTON_PIN, INPUT_PULLUP);  
   pinMode(LED_PIN_A, OUTPUT);
   pinMode(LED_PIN_B, OUTPUT);
+  pinMode(IR_SENSOR_PIN, INPUT);
+
+  // Initialize LCD Screen
+  lcd.begin(LCD_COLS, LCD_ROWS);
+  lcd.print("Use the remote,");
+  lcd.setCursor(1,1);
+  lcd.print(" Luke...");
+
   // Define 2 musical notes as custom LCD Chars
   lcd.createChar(0,QUARTER_NOTE);
   lcd.createChar(1,HALF_NOTE);
-  // Initialize LCD Screen
-  lcd.begin(LCD_COLS, LCD_ROWS);
-  lcd.print("Push the button...");
 
-  // Define State Machine Transitions
-  WAIT->addTransition([](){
-    return true;
-  },PACMAN);
-
-  NEWHOPE->addTransition([](){
-    updateCounters();
-    return true;
-  },WAIT);
-
-  PACMAN->addTransition([](){
-    updateCounters();
-    return true;
-  },NEWHOPE);
+  // Inititalize Serial connection for monitoring IR
+  Serial.begin(9600);
+  Serial.println("IR Receiver Button Decode");
+  irrecv.enableIRIn(); // Start the receiver
+  
 }
  
 // arduino loop - executed after setup()
 void loop() {
-  // Trigger Our State Machine to run
-  machine.run();
-}
-
-/* ** State Function Definitions ** */
-
-// Patiently wait for a button push
-void wait_state() {
-    buttonWait(BUTTON_PIN);
-}
-
-// Play the theme song from Star Wars: A New Hope
-void new_hope_state() {
-  draw_notes();
-  playSong(new_hope_melody, ELEMENTS(new_hope_melody));
-  new_hope_counter++;
-}
-
-// Play the pacman theme song
-void pacman_state() {
-  draw_notes();
-  playSong(pacman_melody, ELEMENTS(pacman_melody));
-  pacman_counter++;
+  if (irrecv.decode()) { // have we received an IR signal?
+    translateIR();
+    irrecv.resume(); // receive the next value
+  }
 }
 
 /* ** Other Functions ** */
-// Waits for a button to be pushed  
-//  assumes INPUT_PULLUP so that LOW means it has been triggered
-void buttonWait(int button_pin) {
-  int buttonState = 0;
-  while(1){
-    buttonState = digitalRead(button_pin);
-    if (buttonState == LOW) {
-      return;
-    }
-  }
-}
 
 // Draw 2 rows of alternating musical notes on the LCD
 //  this seems less boring and gives the user something to look at besides the blinky lights
@@ -195,49 +166,122 @@ void draw_notes() {
 //  this is just an attempt to make the lighting more intersting than simply alternating.
 void flashLED(int current, int last, int duration) {
       // Light different LED depending on value of note
-    if(last > current)
-    {
-      digitalWrite(LED_PIN_1, HIGH);
+    if(last == current) {
+      digitalWrite(LED_PIN_A, HIGH);
+      digitalWrite(LED_PIN_B, HIGH);
       delay(duration);
-      digitalWrite(LED_PIN_1, LOW);
-    } else if(last == current) {
-      digitalWrite(LED_PIN_1, HIGH);
-      digitalWrite(LED_PIN_2, HIGH);
+      digitalWrite(LED_PIN_A, LOW);
+      digitalWrite(LED_PIN_B, LOW);
+    } else if(last > current){
+      digitalWrite(LED_PIN_A, HIGH);
       delay(duration);
-      digitalWrite(LED_PIN_1, LOW);
-      digitalWrite(LED_PIN_2, LOW);
+      digitalWrite(LED_PIN_A, LOW);
     } else {
-      digitalWrite(LED_PIN_2, HIGH);
+      digitalWrite(LED_PIN_B, HIGH);
       delay(duration);
-      digitalWrite(LED_PIN_2, LOW);
+      digitalWrite(LED_PIN_B, LOW);
     }
 }
 
-// Play a song based on notes[] and durations[] arrays
-void playSong(int notes[][2], int count) {
-  for (int i = 0; i < count; i++) {
+// Play a song based on a multi-dimensional array containing
+//  each song contains couplets of Notes and Durations
+//  see song definitions above for more detail
+void playSong(int notes[][2], int numNotes) {
+  for (int i = 0; i < numNotes; i++) {
     //to calculate the note duration, take one second divided by the note type.
     //e.g. quarter note = 1000 / 4, eighth note = 1000/8, etc.
     int duration = 1000 / notes[i][1];
     tone(BUZZER_PIN, notes[i][0], duration);
     flashLED(notes[i][0], last_note, duration);
-
     //to distinguish the notes, set a minimum time between them.
     //the note's duration + 30% seems to work well:
-    int pauseBetweenNotes = duration * 1.30;
+    int pauseBetweenNotes = duration * (100/85);
+    // int pauseBetweenNotes = 100;
     delay(pauseBetweenNotes);
-    
+    // Store the last note played. We are using this to control the blinking LED's
     last_note = notes[i][0];
-    //stop the tone playing:
-    noTone(BUZZER_PIN);
   }
+}
+
+void translateIR() // takes action based on IR code received
+{
+  // Check if it is a repeat IR code 
+  if (irrecv.decodedIRData.flags & IRDATA_FLAGS_IS_REPEAT) {
+    //set the current decodedRawData to the last decodedRawData 
+    irrecv.decodedIRData.decodedRawData = last_decodedRawData;
+    Serial.println("REPEAT!");
+  } else {
+    //output the IR code on the serial monitor
+    // if (irrecv.decodedIRData.decodedRawData != 0) {
+      Serial.print("IR code:0x");
+      Serial.println(irrecv.decodedIRData.decodedRawData, HEX);
+    // }
+  }
+  //map the IR code to the remote key
+  switch (irrecv.decodedIRData.decodedRawData) {
+    case 0xB847FF00:
+      Serial.println("FUNC/STOP"); 
+      // machine.transitionTo(WAIT);
+      break;
+    case 0xF30CFF00: 
+      Serial.println("1");
+      draw_notes();
+      playSong(pacman_melody, ELEMENTS(pacman_melody));
+      pacman_counter++;
+      updateCounters();
+      break;
+    case 0xE718FF00:
+      Serial.println("2");
+      draw_notes();
+      playSong(new_hope_melody, ELEMENTS(new_hope_melody));
+      new_hope_counter++;
+      updateCounters();
+      break;
+    case 0xA15EFF00: Serial.println("3");
+      draw_notes();
+      delay(1000);
+      new_hope_counter++;
+      updateCounters();
+      break;
+    // To-Do: figure these state transitions out and a method to pause
+    case 0xBB44FF00:
+      Serial.println("FAST BACK");
+      break;
+    case 0xBF40FF00:
+      Serial.println("PAUSE");
+      break;
+    case 0xBC43FF00:
+      Serial.println("FAST FORWARD");
+      break;
+    // The rest of the buttons will simply log the press via serial out
+    case 0xB946FF00: Serial.println("VOL+");    break;
+    case 0xBA45FF00: Serial.println("POWER");   break;
+    case 0xF807FF00: Serial.println("DOWN");    break;
+    case 0xEA15FF00: Serial.println("VOL-");    break;
+    case 0xF609FF00: Serial.println("UP");      break;
+    case 0xE619FF00: Serial.println("EQ");      break;
+    case 0xF20DFF00: Serial.println("ST/REPT"); break;
+    case 0xE916FF00: Serial.println("0");       break;
+    case 0xF708FF00: Serial.println("4");       break;
+    case 0xE31CFF00: Serial.println("5");       break;
+    case 0xA55AFF00: Serial.println("6");       break;
+    case 0xBD42FF00: Serial.println("7");       break;
+    case 0xAD52FF00: Serial.println("8");       break;
+    case 0xB54AFF00: Serial.println("9");       break;
+    case 0x0: Serial.println("9");              break;
+    default:
+      Serial.println(" other button   ");
+  }
+  //store the last decodedRawData
+  last_decodedRawData = irrecv.decodedIRData.decodedRawData;
+  delay(500); // Do not get immediate repeat
 }
 
 // Update LCD Screen with current Counters
 void updateCounters() {
   lcd.clear();
   lcd.print("New Hope: ");
-  lcd.setCursor(11, 0);
+  lcd.setCursor(10, 0);
   lcd.print(new_hope_counter);
   
   lcd.setCursor(0, 1);
